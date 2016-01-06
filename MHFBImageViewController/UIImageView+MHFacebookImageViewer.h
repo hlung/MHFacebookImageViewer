@@ -19,4 +19,6 @@
 - (void) setupImageViewerWithDatasource:(id<MHFacebookImageViewerDatasource>)imageDatasource initialIndex:(NSInteger)initialIndex onOpen:(MHFacebookImageViewerOpeningBlock)open onClose:(MHFacebookImageViewerClosingBlock)close;
 - (void)removeImageViewer;
 @property (retain, nonatomic) MHFacebookImageViewer *imageBrowser;
+@property (nonatomic, copy) NSString *imageBrowserDoneButtonTitle;
+
 @end

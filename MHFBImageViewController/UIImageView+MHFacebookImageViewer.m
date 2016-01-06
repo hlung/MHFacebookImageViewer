@@ -15,6 +15,7 @@
 @end
 
 static char kImageBrowserKey;
+static char kImageBrowserDoneButtonTitleKey;
 
 #pragma mark - UIImageView Category
 @implementation UIImageView (MHFacebookImageViewer)
@@ -100,6 +101,14 @@ static char kImageBrowserKey;
         
     }
     
+}
+
+-(void)setImageBrowserDoneButtonTitle:(NSString *)title {
+    objc_setAssociatedObject(self, &kImageBrowserDoneButtonTitleKey, title, OBJC_ASSOCIATION_COPY_NONATOMIC);
+}
+
+-(NSString *)imageBrowserDoneButtonTitle {
+    return objc_getAssociatedObject(self, &kImageBrowserDoneButtonTitleKey);
 }
 
 -(void)setImageBrowser:(MHFacebookImageViewer *)imageBrowser {

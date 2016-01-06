@@ -25,9 +25,9 @@
 
 #import <UIKit/UIKit.h>
 
-typedef void (^MHFacebookImageViewerOpeningBlock)(void);
-typedef void (^MHFacebookImageViewerClosingBlock)(void);
-
+@class MHFacebookImageViewerCell;
+typedef void (^MHFacebookImageViewerOpeningBlock)();
+typedef void (^MHFacebookImageViewerClosingBlock)();
 
 @class MHFacebookImageViewer;
 @protocol MHFacebookImageViewerDatasource <NSObject>

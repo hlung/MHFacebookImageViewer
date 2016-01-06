@@ -25,6 +25,7 @@
 
 #import "MHFacebookImageViewer.h"
 //#import "UIImageView+AFNetworking.h"
+#import "UIImageView+MHFacebookImageViewer.h"
 #import <objc/runtime.h>
 static const CGFloat kMinBlackMaskAlpha = 0.3f;
 static const CGFloat kMaxImageScale = 2.5f;
@@ -89,6 +90,28 @@ static const CGFloat kMinImageScale = 1.0f;
     [_doneButton addTarget:self
                     action:@selector(close:)
           forControlEvents:UIControlEventTouchUpInside];
+    __scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    
+    // HLUNG: add rotation support
+    [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(setScreenWithDeviceOrientation:) name:@"UIDeviceOrientationDidChangeNotification" object:nil];
+}
+
+- (void)didMoveToSuperview {
+    [super didMoveToSuperview];
+    [self rollbackViewController]; // needed to make initial positioning correct
+}
+
+- (void)setScreenWithDeviceOrientation:(NSNotification *)notification {
+//    UIDeviceOrientation orientation = [[UIDevice currentDevice] orientation];
+//    if (orientation == UIDeviceOrientationPortrait || orientation == UIDeviceOrientationPortraitUpsideDown){
+//        NSLog(@"portrait");
+//    }else{
+//        NSLog(@"landscape");
+//    }
+    
+    //[self performSelector:@selector(rollbackViewController) withObject:nil afterDelay:0.5];
+    [self rollbackViewController]; // this will adjust imageView as device orientation changes
 }
 
 - (void) setImageURL:(NSURL *)imageURL defaultImage:(UIImage*)defaultImage imageIndex:(NSInteger)imageIndex {
@@ -121,6 +144,7 @@ static const CGFloat kMinImageScale = 1.0f;
         __imageView.frame = _originalFrameRelativeToScreen;
         [UIView animateWithDuration:0.4f delay:0.0f options:0 animations:^{
             __imageView.frame = [self centerFrameFromImage:__imageView.image];
+            __imageView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
             CGAffineTransform transf = CGAffineTransformIdentity;
             // Root View Controller - move backward
             _rootViewController.view.transform = CGAffineTransformScale(transf, 0.95f, 0.95f);
@@ -156,11 +180,12 @@ static const CGFloat kMinImageScale = 1.0f;
     
 }
 
-# pragma mark - Avoid Unwanted Horizontal Gesture
-- (BOOL)gestureRecognizerShouldBegin:(UIPanGestureRecognizer *)panGestureRecognizer {
-    CGPoint translation = [panGestureRecognizer translationInView:__scrollView];
-    return fabs(translation.y) > fabs(translation.x) ;
-}
+// HLUNG: WE WANT HORIZONTAL TOO!!!
+//# pragma mark - Avoid Unwanted Horizontal Gesture
+//- (BOOL)gestureRecognizerShouldBegin:(UIPanGestureRecognizer *)panGestureRecognizer {
+//    CGPoint translation = [panGestureRecognizer translationInView:__scrollView];
+//    return fabs(translation.y) > fabs(translation.x) ;
+//}
 
 #pragma mark - Gesture recognizer
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
@@ -192,18 +217,24 @@ static const CGFloat kMinImageScale = 1.0f;
     __scrollView.bounces = NO;
     CGSize windowSize = _blackMask.bounds.size;
     CGPoint currentPoint = [panGesture translationInView:__scrollView];
-    CGFloat y = currentPoint.y + _panOrigin.y;
     CGRect frame = __imageView.frame;
-    frame.origin.y = y;
     
+    // HLUNG: allow flick dismiss in both x and y axis
+    CGFloat x = currentPoint.x + _panOrigin.x;
+    frame.origin.x = x;
+    CGFloat y = currentPoint.y + _panOrigin.y;
+    frame.origin.y = y;
+
     __imageView.frame = frame;
     
-    CGFloat yDiff = abs((y + __imageView.frame.size.height/2) - windowSize.height/2);
-    _blackMask.alpha = MAX(1 - yDiff/(windowSize.height/0.5),kMinBlackMaskAlpha);
+    CGFloat xDiff = fabs((x + __imageView.frame.size.width/2) - windowSize.width/2);
+    CGFloat yDiff = fabs((y + __imageView.frame.size.height/2) - windowSize.height/2);
+    CGFloat maxDiff = fmaxf(xDiff, yDiff);
+    _blackMask.alpha = MAX(1 - maxDiff/(windowSize.height), kMinBlackMaskAlpha);
     
     if ((panGesture.state == UIGestureRecognizerStateEnded || panGesture.state == UIGestureRecognizerStateCancelled) && __scrollView.zoomScale == 1.0f) {
         
-        if(_blackMask.alpha < 0.85f) {
+        if(_blackMask.alpha < 0.9f) {
             [self dismissViewController];
         }else {
             [self rollbackViewController];
@@ -460,7 +491,7 @@ static const CGFloat kMinImageScale = 1.0f;
     if(!imageViewerCell) {
         CGRect windowFrame = [[UIScreen mainScreen] bounds];
         imageViewerCell = [[MHFacebookImageViewerCell alloc]initWithStyle:UITableViewCellStyleDefault reuseIdentifier:cellID];
-        imageViewerCell.transform = CGAffineTransformMakeRotation(M_PI_2);
+//        imageViewerCell.transform = CGAffineTransformMakeRotation(M_PI_2); // HLUNG: Y U ROTATE???
         imageViewerCell.frame = CGRectMake(0,0,windowFrame.size.width, windowFrame.size.height);
         imageViewerCell.originalFrameRelativeToScreen = _originalFrameRelativeToScreen;
         imageViewerCell.viewController = self;
@@ -473,8 +504,9 @@ static const CGFloat kMinImageScale = 1.0f;
         imageViewerCell.doneButton = _doneButton;
         imageViewerCell.initialIndex = _initialIndex;
         imageViewerCell.statusBarStyle = _statusBarStyle;
-        [imageViewerCell loadAllRequiredViews];
         imageViewerCell.backgroundColor = [UIColor clearColor];
+//        imageViewerCell.backgroundColor = [UIColor colorWithRed:0 green:0 blue:0.5 alpha:0.5];
+        [imageViewerCell loadAllRequiredViews];
     }
     if(!self.imageDatasource) {
         // Just to retain the old version
@@ -486,7 +518,7 @@ static const CGFloat kMinImageScale = 1.0f;
 }
 
 - (CGFloat) tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    return _rootViewController.view.bounds.size.width;
+    return _rootViewController.view.bounds.size.height;
 }
 
 - (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil
@@ -517,9 +549,9 @@ static const CGFloat kMinImageScale = 1.0f;
     // Add a Tableview
     _tableView = [[UITableView alloc]initWithFrame:windowBounds style:UITableViewStylePlain];
     [self.view addSubview:_tableView];
-    //rotate it -90 degrees
-    _tableView.transform = CGAffineTransformMakeRotation(-M_PI_2);
-    _tableView.frame = CGRectMake(0,0,windowBounds.size.width,windowBounds.size.height);
+    //rotate it -90 degrees // HLUNG: Y U ROTATE???
+//    _tableView.transform = CGAffineTransformMakeRotation(-M_PI_2);
+//    _tableView.frame = CGRectMake(0,0,windowBounds.size.width,windowBounds.size.height);
     _tableView.pagingEnabled = YES;
     _tableView.dataSource = self;
     _tableView.delegate = self;
@@ -528,6 +560,7 @@ static const CGFloat kMinImageScale = 1.0f;
     _tableView.delaysContentTouches = YES;
     [_tableView setShowsVerticalScrollIndicator:NO];
     [_tableView setContentOffset:CGPointMake(0, _initialIndex * windowBounds.size.width)];
+    _tableView.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
     
     _blackMask = [[UIView alloc] initWithFrame:windowBounds];
     _blackMask.backgroundColor = [UIColor blackColor];
@@ -539,9 +572,22 @@ static const CGFloat kMinImageScale = 1.0f;
     _doneButton = [UIButton buttonWithType:UIButtonTypeCustom];
     //[_doneButton setImageEdgeInsets:UIEdgeInsetsMake(-10, -10, -10, -10)];  // make click area bigger
     //[_doneButton setImage:[UIImage imageNamed:@"Done"] forState:UIControlStateNormal];
-    [_doneButton setTitle:@"Done" forState:UIControlStateNormal];
-    
-    _doneButton.frame = CGRectMake(windowBounds.size.width - (51.0f + 9.0f),30.0f, 51.0f, 26.0f);
+    NSString *doneTitle = @"Done";
+    if (self.senderView.imageBrowserDoneButtonTitle != nil) {
+        doneTitle = self.senderView.imageBrowserDoneButtonTitle;
+    }
+    [_doneButton setTitle:doneTitle forState:UIControlStateNormal];
+    _doneButton.backgroundColor = [UIColor colorWithWhite:0.7 alpha:0.7];
+    _doneButton.layer.cornerRadius = 3;
+    _doneButton.layer.masksToBounds = true;
+    CGSize size = CGSizeMake(70.0f, 44.0f);
+    CGSize spacing = CGSizeMake(20.0f, 30.0f);
+    _doneButton.frame = CGRectMake(windowBounds.size.width - (size.width + spacing.width),
+                                   spacing.height,
+                                   size.width,
+                                   size.height);
+    _doneButton.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleBottomMargin;
+
 }
 
 #pragma mark - Show
